@@ -278,10 +278,27 @@ def main():
 
     dotenv_values = load_dotenv(args.env_file)
 
-    base_url = args.base_url or dotenv_values.get("CONFLUENCE_BASE_URL")
-    pat = args.pat or dotenv_values.get("CONFLUENCE_PAT")
-    auth_mode = args.auth_mode or dotenv_values.get("CONFLUENCE_AUTH_MODE", "auto")
-    username = args.username or dotenv_values.get("CONFLUENCE_USERNAME")
+    base_url = (
+        args.base_url
+        or os.environ.get("CONFLUENCE_BASE_URL")
+        or dotenv_values.get("CONFLUENCE_BASE_URL")
+    )
+    pat = (
+        args.pat
+        or os.environ.get("CONFLUENCE_PAT")
+        or dotenv_values.get("CONFLUENCE_PAT")
+    )
+    auth_mode = (
+        args.auth_mode
+        or os.environ.get("CONFLUENCE_AUTH_MODE")
+        or dotenv_values.get("CONFLUENCE_AUTH_MODE")
+        or "auto"
+    )
+    username = (
+        args.username
+        or os.environ.get("CONFLUENCE_USERNAME")
+        or dotenv_values.get("CONFLUENCE_USERNAME")
+    )
 
     if not base_url:
         parser.error("missing --base-url or CONFLUENCE_BASE_URL")

@@ -4,7 +4,7 @@ Local skill workspace for accessing a self-hosted Confluence instance.
 
 ## Version
 
-`0.1.1`
+`0.2.2`
 
 ## Structure
 
@@ -13,7 +13,7 @@ Local skill workspace for accessing a self-hosted Confluence instance.
 ├── CHANGELOG.md
 ├── README.md
 └── skills
-    └── qc-confluence-skills
+    └── confluence-manager
         ├── SKILL.md
         └── scripts
             └── confluence_api.py
@@ -23,17 +23,24 @@ Local skill workspace for accessing a self-hosted Confluence instance.
 
 The actual skill lives here:
 
-- `skills/qc-confluence-skills/SKILL.md`
+- `skills/confluence-manager/SKILL.md`
 
 The bundled script lives here:
 
-- `skills/qc-confluence-skills/scripts/confluence_api.py`
+- `skills/confluence-manager/scripts/confluence_api.py`
 
 ## Configuration
 
 The canonical project version is stored in `./VERSION`.
 
-The script reads `./.env` from the current working directory by default.
+Configuration priority is:
+
+1. CLI arguments
+2. Process environment variables
+3. Values from `--env-file`
+4. Values from `./.env`
+
+The script reads `./.env` from the current working directory by default, and also supports standard process environment variables.
 
 Required values:
 
@@ -54,5 +61,5 @@ CONFLUENCE_USERNAME=your-name
 Run from a project directory that contains `.env`:
 
 ```bash
-python3 /Users/zhangpeng/opt/self-skills/qc-confluence-skills/skills/qc-confluence-skills/scripts/confluence_api.py search-pages --title "release notes"
+python3 /Users/zhangpeng/opt/self-skills/qc-confluence-skills/skills/confluence-manager/scripts/confluence_api.py search-pages --title "release notes"
 ```

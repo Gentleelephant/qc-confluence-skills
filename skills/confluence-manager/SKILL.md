@@ -1,6 +1,6 @@
 ---
-name: qc-confluence-skills
-description: Fetch article content from a self-hosted Confluence instance using its REST API and a personal access token. Use when the user wants to read, search, or download Confluence page content from https://cwiki.yunify.com or another compatible self-hosted Confluence deployment.
+name: confluence-manager
+description: Read, search, download, and later extend to create or update content in a self-hosted Confluence instance using its REST API and a personal access token. Use when the user wants to work with page content from https://cwiki.yunify.com or another compatible self-hosted Confluence deployment.
 ---
 
 # Self-hosted Confluence Fetch
@@ -9,7 +9,7 @@ Use this skill when the task is to read or search Confluence content from a self
 
 ## Configuration
 
-Create a `.env` file in the project directory where the script will be run.
+Create a `.env` file in the project directory where the script will be run, or provide the same values through process environment variables.
 
 Required values:
 
@@ -24,6 +24,13 @@ Optional values:
 CONFLUENCE_AUTH_MODE=auto
 CONFLUENCE_USERNAME=your-name
 ```
+
+Configuration priority is:
+
+1. CLI arguments
+2. Process environment variables
+3. Values from `--env-file`
+4. Values from `./.env`
 
 By default the script reads `./.env` from the current working directory. You can point to a different file with `--env-file`.
 
