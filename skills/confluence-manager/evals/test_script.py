@@ -134,5 +134,39 @@ class TestOutputFormat(unittest.TestCase):
                         confluence_api.main()
 
 
+class TestResolveBodyImages(unittest.TestCase):
+    def test_replaces_attachment_image(self):
+        body = '<ac:image ac:alt="Diagram"><ri:attachment ri:filename="flow.png"/></ac:image>'
+        attachments = [{"title": "flow.png", "download": "https://cwiki/flow.png"}]
+        resolved, images = confluence_api.ConfluenceClient._resolve_body_images(body, attachments)
+        self.assertIn("![Diagram](https://cwiki/flow.png)", resolved)
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0]["filename"], "flow.png")
+
+    def test_replaces_url_image(self):
+        body = '<ac:image ac:alt="External"><ri:url ri:value="https://e.com/img.jpg"/></ac:image>'
+        resolved, images = confluence_api.ConfluenceClient._resolve_body_images(body, [])
+        self.assertIn("![External](https://e.com/img.jpg)", resolved)
+
+    def test_marks_missing_attachment(self):
+        body = '<ac:image><ri:attachment ri:filename="missing.png"/></ac:image>'
+        resolved, images = confluence_api.ConfluenceClient._resolve_body_images(body, [])
+        self.assertIn("file not found: missing.png", resolved)
+        self.assertTrue(images[0]["missing"])
+
+    def test_no_images_returns_unchanged(self):
+        body = "<p>Just text</p>"
+        resolved, images = confluence_api.ConfluenceClient._resolve_body_images(body, [])
+        self.assertEqual(resolved, body)
+        self.assertEqual(images, [])
+
+    def test_multiline_image_tag(self):
+        body = '<ac:image ac:alt="multi">\n  <ri:attachment ri:filename="a.jpg" />\n</ac:image>'
+        attachments = [{"title": "a.jpg", "download": "https://cwiki/a.jpg"}]
+        resolved, images = confluence_api.ConfluenceClient._resolve_body_images(body, attachments)
+        self.assertIn("![multi](https://cwiki/a.jpg)", resolved)
+        self.assertEqual(len(images), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,10 +4,20 @@ import base64
 import json
 import os
 import pathlib
+import re
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+# Regex to match Confluence <ac:image> tags (supports multiline and case-insensitive)
+_IMAGE_TAG_RE = re.compile(r'<ac:image([^>]*)>(.*?)</ac:image>', re.DOTALL | re.IGNORECASE)
+_IMAGE_ALT_RE = re.compile(r'ac:alt\s*=\s*"([^"]*)"', re.IGNORECASE)
+_IMAGE_WIDTH_RE = re.compile(r'ac:width\s*=\s*"([^"]*)"', re.IGNORECASE)
+_IMAGE_HEIGHT_RE = re.compile(r'ac:height\s*=\s*"([^"]*)"', re.IGNORECASE)
+_IMAGE_FILENAME_RE = re.compile(r'ri:filename\s*=\s*"([^"]*)"', re.IGNORECASE)
+_IMAGE_URL_RE = re.compile(r'ri:value\s*=\s*"([^"]*)"', re.IGNORECASE)
 
 
 DEFAULT_EXPAND = "body.storage,version,space,ancestors"
@@ -112,6 +122,17 @@ class ConfluenceClient:
             expand_value = f"body.{body_format}," + expand_value.replace("body.storage,", "").replace("body.view,", "")
         data = self._request(f"/rest/api/content/{page_id}", query={"expand": expand_value})
         body = data.get("body", {}).get(body_format, {}).get("value")
+
+        attachments = []
+        images = []
+        if body:
+            try:
+                attachments_data = self.list_attachments(page_id)
+                attachments = attachments_data.get("results", [])
+                body, images = self._resolve_body_images(body, attachments)
+            except Exception:
+                pass
+
         return {
             "id": data.get("id"),
             "title": data.get("title"),
@@ -126,6 +147,8 @@ class ConfluenceClient:
             ],
             "body_format": body_format,
             "body": body,
+            "attachments": attachments,
+            "images": images,
             "raw": data,
         }
 
@@ -238,6 +261,58 @@ class ConfluenceClient:
         if not webui:
             return None
         return f"{self.base_url}{webui}"
+
+    @staticmethod
+    def _resolve_body_images(body, attachments):
+        """Parse body.storage for Confluence <ac:image> tags and replace with accessible URLs.
+
+        Returns (resolved_body, images_list).
+        """
+        if not body:
+            return body, []
+
+        attachment_map = {
+            a["title"]: a["download"] for a in attachments if a.get("download")
+        }
+        images = []
+
+        def _replace(match):
+            attrs = match.group(1)
+            inner = match.group(2)
+
+            alt_m = _IMAGE_ALT_RE.search(attrs)
+            alt = alt_m.group(1) if alt_m else ""
+
+            filename_m = _IMAGE_FILENAME_RE.search(inner)
+            url_m = _IMAGE_URL_RE.search(inner)
+
+            if filename_m:
+                filename = filename_m.group(1)
+                url = attachment_map.get(filename)
+                info = {
+                    "filename": filename,
+                    "url": url,
+                    "alt": alt,
+                    "type": "attachment",
+                }
+                if url:
+                    images.append(info)
+                    return f"![{alt or filename}]({url})"
+                else:
+                    info["missing"] = True
+                    images.append(info)
+                    return f"![{alt or filename}](file not found: {filename})"
+            elif url_m:
+                url = url_m.group(1)
+                images.append(
+                    {"filename": None, "url": url, "alt": alt, "type": "url"}
+                )
+                return f"![{alt}]({url})"
+            else:
+                return match.group(0)
+
+        resolved = _IMAGE_TAG_RE.sub(_replace, body)
+        return resolved, images
 
 
 def build_parser():

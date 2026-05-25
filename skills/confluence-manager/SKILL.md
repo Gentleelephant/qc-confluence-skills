@@ -115,7 +115,10 @@ Important fields for `get-page`:
 - `space`
 - `version`
 - `webui`
-- `body`
+- `body` — inline `<ac:image>` tags are automatically replaced with Markdown image links `![alt](url)` using real attachment download URLs
+- `attachments` — full list of page attachments with download URLs
+- `images` — metadata of image references found in the body (`filename`, `url`, `alt`, `type`)
+- `raw` — the untouched Confluence API response (includes original `body.storage`)
 
 For `search-pages`, the response includes `total`, `start`, `limit`, and `results`. Use `total` and `start` to determine whether more pages exist.
 

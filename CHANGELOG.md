@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-05-25
+
+- `get-page` now automatically resolves inline `<ac:image>` tags to Markdown image links with real attachment download URLs
+- `get-page` response now includes `attachments` and `images` fields for complete visibility into page media
+- Added `_resolve_body_images` static method with regex-based parsing for Confluence `body.storage` XML
+- Added unit tests for image resolution (attachment, external URL, missing, multiline, no-op)
+
 ## 0.3.0 - 2026-05-25
 
 - Optimized skill description to broaden trigger coverage for wiki/docs/knowledge base queries
