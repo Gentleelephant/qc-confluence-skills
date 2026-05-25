@@ -1,6 +1,6 @@
 ---
 name: confluence-manager
-description: Read, search, download, and later extend to create or update content in a self-hosted Confluence instance using its REST API and a personal access token. Use when the user wants to work with page content from https://cwiki.yunify.com or another compatible self-hosted Confluence deployment.
+description: Read, search, and download content from a self-hosted Confluence instance via its REST API. Use this skill whenever the user wants to access, query, or retrieve documentation, wiki pages, or knowledge base content — especially when they mention Confluence, internal docs, company wiki, or reference URLs like cwiki.yunify.com. Also use it when the user asks to "check the wiki", "find the doc about X", "pull up the internal page", or similar queries that imply searching an internal documentation system. Future versions will also support creating and updating Confluence content.
 ---
 
 # Self-hosted Confluence Fetch
@@ -62,6 +62,13 @@ Search with CQL:
 python3 scripts/confluence_api.py search-pages --cql 'type=page AND title~"release"'
 ```
 
+Paginate through results (the response includes `total` and `start` fields):
+
+```bash
+python3 scripts/confluence_api.py search-pages --title "release notes" --start 0 --limit 10
+python3 scripts/confluence_api.py search-pages --title "release notes" --start 10 --limit 10
+```
+
 Download attachments metadata:
 
 ```bash
@@ -81,14 +88,23 @@ Prefer `get-page --id` when the page id is known. It is stable and avoids ambigu
 When the id is unknown:
 
 1. Run `search-pages` with `--title` or `--cql`
-2. Pick the target page from the JSON results
-3. Run `get-page --id ...`
+2. Check `total` in the response — if `total > limit + start`, more pages are available
+3. Pick the target page from the JSON results
+4. Run `get-page --id ...`
+
+To fetch all results when `total` exceeds `limit`, loop `search-pages` with `--start` incremented by `limit` each call until all results are retrieved.
 
 The script defaults to `body.storage`, which is the safest format for downstream processing. Use `--body-format view` only when rendered HTML is specifically needed.
 
 ## Output
 
 The script prints JSON to stdout. Treat that as the interface contract.
+
+For large result sets, use `--compact` to produce single-line JSON and conserve tokens:
+
+```bash
+python3 scripts/confluence_api.py search-pages --title "docs" --limit 50 --compact
+```
 
 Important fields for `get-page`:
 
@@ -101,10 +117,22 @@ Important fields for `get-page`:
 - `webui`
 - `body`
 
+For `search-pages`, the response includes `total`, `start`, `limit`, and `results`. Use `total` and `start` to determine whether more pages exist.
+
 For downloads, the script returns JSON containing the saved files.
+
+## Error handling
+
+When the script returns an error, match the HTTP status and suggest a recovery action:
+
+- **401 Unauthorized** — The PAT is missing, expired, or invalid. Ask the user to check `CONFLUENCE_PAT` in `.env`. Do not retry automatically. If `CONFLUENCE_AUTH_MODE=auto` failed with 401, suggest switching to `CONFLUENCE_AUTH_MODE=basic` and providing `CONFLUENCE_USERNAME` as a fallback.
+- **403 Forbidden** — The PAT is valid but the account lacks permission for the requested resource. Tell the user which resource was denied and suggest checking permissions in Confluence.
+- **404 Not Found** — The page id or title does not match anything. Confirm the id with the user, or broaden the search if using `--title`.
+- **Network errors** (connection refused, timeout) — Report the Confluence base URL and suggest the user verify VPN or network connectivity. Do not retry more than once.
+
+In all error cases, present the error clearly to the user rather than silently swallowing it. The script writes errors to stderr — always check stderr output.
 
 ## Notes
 
 - Do not ask the user for a password when `CONFLUENCE_PAT` is present in `.env`.
 - Prefer the script over ad hoc `curl` unless debugging auth or endpoint behavior.
-- If auth fails under `auto`, inspect the error and retry with `CONFLUENCE_AUTH_MODE=basic` plus `CONFLUENCE_USERNAME`.

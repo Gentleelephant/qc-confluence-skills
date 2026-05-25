@@ -129,14 +129,14 @@ class ConfluenceClient:
             "raw": data,
         }
 
-    def search_pages(self, title=None, cql=None, limit=10, body_format=None):
+    def search_pages(self, title=None, cql=None, limit=10, start=0, body_format=None):
         if cql:
-            query = {"cql": cql, "limit": limit}
+            query = {"cql": cql, "limit": limit, "start": start}
             if body_format:
                 query["expand"] = f"body.{body_format},version,space"
             data = self._request("/rest/api/content/search", query=query)
         else:
-            query = {"type": "page", "limit": limit}
+            query = {"type": "page", "limit": limit, "start": start}
             if title:
                 query["title"] = title
             if body_format:
@@ -164,6 +164,8 @@ class ConfluenceClient:
         return {
             "count": len(results),
             "limit": limit,
+            "start": start,
+            "total": data.get("size") or data.get("totalSize", 0),
             "results": results,
             "raw": data,
         }
@@ -246,6 +248,7 @@ def build_parser():
     parser.add_argument("--auth-mode")
     parser.add_argument("--username")
     parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--compact", action="store_true", help="Output compact JSON (no indentation)")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -258,6 +261,7 @@ def build_parser():
     search.add_argument("--title")
     search.add_argument("--cql")
     search.add_argument("--limit", type=int, default=10)
+    search.add_argument("--start", type=int, default=0)
     search.add_argument("--body-format", choices=["storage", "view", "export_view"])
 
     attachments = subparsers.add_parser("list-attachments")
@@ -320,6 +324,7 @@ def main():
             title=args.title,
             cql=args.cql,
             limit=args.limit,
+            start=args.start,
             body_format=args.body_format,
         )
     elif args.command == "list-attachments":
@@ -329,7 +334,8 @@ def main():
     else:
         parser.error(f"unsupported command: {args.command}")
 
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
+    indent = None if args.compact else 2
+    json.dump(result, sys.stdout, ensure_ascii=False, indent=indent)
     sys.stdout.write("\n")
 
 

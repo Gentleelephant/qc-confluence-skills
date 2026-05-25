@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 - 2026-05-25
+
+- Optimized skill description to broaden trigger coverage for wiki/docs/knowledge base queries
+- Added error handling guidance for 401, 403, 404, and network errors
+- Added `--start` pagination parameter to `search-pages` command with `total` field in response
+- Added `--compact` flag for compact JSON output to conserve tokens
+- Added `.env` template file at `assets/env.template`
+- Added unit tests and evaluation prompts
+
 ## 0.2.2 - 2026-05-25
 
 - Renamed the skill from `confluence-reader` to `confluence-manager`

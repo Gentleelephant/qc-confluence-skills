@@ -1,0 +1,41 @@
+{
+  "skill_name": "confluence-manager",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我查一下公司 wiki 上关于 release 的文档有哪些，在 cwiki.yunify.com 上",
+      "expected_output": "使用 search-pages 命令搜索 title 包含 'release' 的页面，返回 JSON 结果列表",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "把我们内部知识库里 id 为 12345 的那篇部署文档内容拉下来",
+      "expected_output": "使用 get-page --id 12345 获取页面内容并展示",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "我需要下载 Confluence 上页面 67890 的所有附件到本地 ./downloads 目录",
+      "expected_output": "使用 download-attachments --id 67890 --out ./downloads 下载附件",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "帮我搜一下有没有关于 'Kubernetes 集群' 的文档，我不确定是在 Confluence 还是其他系统里",
+      "expected_output": "优先尝试 Confluence 搜索，使用 search-pages --cql 或 --title 搜索 Kubernetes 集群相关内容",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "帮我看下这个 GitHub issue 里提到的文档链接",
+      "expected_output": "不触发 Confluence skill，这是 GitHub 相关的查询",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "帮我写一份新的项目文档，我要放到 wiki 上",
+      "expected_output": "可以提及 Confluence skill 但目前只支持读取，告知用户暂不支持创建",
+      "files": []
+    }
+  ]
+}

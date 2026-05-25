@@ -29,4 +29,4 @@ These instructions apply to the entire project under this directory.
 
 ## Current Version
 
-- Current version: `0.2.2`
+- Current version: `0.3.0`

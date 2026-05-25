@@ -4,7 +4,7 @@ Local skill workspace for accessing a self-hosted Confluence instance.
 
 ## Version
 
-`0.2.2`
+`0.3.0`
 
 ## Structure
 
