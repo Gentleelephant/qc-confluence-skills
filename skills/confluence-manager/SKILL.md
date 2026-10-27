@@ -1,141 +1,134 @@
 ---
 name: confluence-manager
-description: Read, search, and download content from a self-hosted Confluence instance via its REST API. Use this skill whenever the user wants to access, query, or retrieve documentation, wiki pages, or knowledge base content — especially when they mention Confluence, internal docs, company wiki, or reference URLs like cwiki.yunify.com. Also use it when the user asks to "check the wiki", "find the doc about X", "pull up the internal page", or similar queries that imply searching an internal documentation system. Future versions will also support creating and updating Confluence content.
+description: Read, search, summarize, and export content from a self-hosted Confluence instance through its REST API. Use this skill whenever the user asks about internal documentation, wiki pages, a company knowledge base, runbooks, deployment guides, or internal doc URLs, including requests like "find the doc about X", "what does our wiki say about Y", "pull up that page", "export these pages to Markdown", or "list the child pages under Z". Read-only: it does not create or edit Confluence content.
 ---
 
-# Self-hosted Confluence Fetch
+# Self-hosted Confluence
 
-Use this skill when the task is to read or search Confluence content from a self-hosted instance with a personal access token.
+Read-only access to a self-hosted Confluence (Server/Data Center) instance. The bundled script uses only the Python standard library, emits JSON on stdout, and is designed for question answering, Markdown export, and batch/tree operations.
 
-## Configuration
+## Setup
 
-Create a `.env` file in the project directory where the script will be run, or provide the same values through process environment variables.
+Create a user-level config once:
 
-Required values:
-
-```dotenv
-CONFLUENCE_BASE_URL=https://cwiki.yunify.com
-CONFLUENCE_PAT=your-token
+```bash
+python3 scripts/confluence_api.py config init
+python3 scripts/confluence_api.py config set CONFLUENCE_BASE_URL=https://confluence.example.com
+# then open ~/.config/confluence-manager/.env and fill in CONFLUENCE_PAT
+python3 scripts/confluence_api.py check
 ```
 
-Optional values:
+`config init` writes `~/.config/confluence-manager/.env` with mode `0600`. Edit that file directly for secrets; `config set CONFLUENCE_PAT=...` leaves the token in shell history. Use `config init --local` to create `./.env` in the current project instead.
 
-```dotenv
-CONFLUENCE_AUTH_MODE=auto
-CONFLUENCE_USERNAME=your-name
-```
-
-Configuration priority is:
+Configuration precedence:
 
 1. CLI arguments
 2. Process environment variables
-3. Values from `--env-file`
-4. Values from `./.env`
+3. `--env-file <path>`
+4. `./.env` in the current directory
+5. `~/.config/confluence-manager/.env`
 
-By default the script reads `./.env` from the current working directory. You can point to a different file with `--env-file`.
+Authentication:
 
-## Primary tool
+- **Bearer (recommended):** `CONFLUENCE_PAT`. A personal access token is not a password.
+- **Basic:** `CONFLUENCE_USERNAME` + `CONFLUENCE_PASSWORD` (the account login password).
+- `CONFLUENCE_AUTH_MODE=auto` (default) tries bearer first, then basic when both are configured.
 
-Run the bundled script:
-
-```bash
-python3 scripts/confluence_api.py ...
-```
-
-## Common commands
-
-Get a page by id with storage body:
+## Commands
 
 ```bash
-python3 scripts/confluence_api.py get-page --id 12345
+python3 scripts/confluence_api.py check
+python3 scripts/confluence_api.py search -q "kubesphere 离线安装" --space SC --limit 5
+python3 scripts/confluence_api.py get 12345 --section "安装步骤" --max-chars 4000
+python3 scripts/confluence_api.py read 12345 67890 --max-chars 3000
+python3 scripts/confluence_api.py tree --space SC --max-depth 2
+python3 scripts/confluence_api.py export --ids 12345,67890 --out ./wiki-export
+python3 scripts/confluence_api.py attachments 12345
+python3 scripts/confluence_api.py download-attachments 12345 --out ./attachments
+python3 scripts/confluence_api.py spaces --limit 25
+python3 scripts/confluence_api.py config show
 ```
 
-Search by title:
+Command aliases `get-page`, `search-pages`, and `list-attachments` are still accepted.
 
-```bash
-python3 scripts/confluence_api.py search-pages --title "release notes"
-```
+### Search
 
-Search with CQL:
+`search` builds CQL from `-q`/`--query` (matches text or title), `--title`, `--space`, and `--label`; `--cql` passes a raw query through. Results are relevance-ordered by default. Use `--sort recent` only when the user explicitly wants the newest pages.
 
-```bash
-python3 scripts/confluence_api.py search-pages --cql 'type=page AND title~"release"'
-```
+- `--limit N` — number of results for a single request (default 10, server cap 500).
+- `--start N` — offset for manual pagination.
+- `--all --max-results N` — collect every result up to `N` automatically. `--limit` then sets the per-request page size (default 100, cap 100); `--max-results` defaults to 500.
+- `--explain` — include the CQL, endpoint, and timing.
 
-Paginate through results (the response includes `total` and `start` fields):
+Read `has_more` / `next_start` from the response. Do **not** infer pagination from `total > start + limit`; servers cap page sizes without changing `total`.
 
-```bash
-python3 scripts/confluence_api.py search-pages --title "release notes" --start 0 --limit 10
-python3 scripts/confluence_api.py search-pages --title "release notes" --start 10 --limit 10
-```
+Each result includes `id`, `title`, `space`, `space_name`, `url`, `last_modified`, and a clean `excerpt`. Pick the target by title and excerpt, then fetch it by `id`.
 
-Download attachments metadata:
+### Get
 
-```bash
-python3 scripts/confluence_api.py list-attachments --id 12345
-```
+`get` accepts a page id or a Confluence URL (`?pageId=...` or `/pages/<id>`), or `--title` with optional `--space`.
 
-Download attachments to a directory:
+- `--format md` (default) returns Markdown converted from Confluence's rendered HTML.
+- `--format text` returns flattened text for direct quoting.
+- `--format storage|view|export_view` returns the raw body of that format.
+- `--section "Heading"` returns only that heading's section; the error lists available headings when no match is found. Markdown/text output only.
+- `--max-chars N` truncates the body and sets `truncated`.
+- `--out FILE` writes the body to a file and nulls `body` in the JSON.
+- `--with-attachments` includes attachment metadata.
+- `--download-images DIR` saves inline images and reports absolute URLs. Markdown/text output only.
 
-```bash
-python3 scripts/confluence_api.py download-attachments --id 12345 --out ./tmp/attachments
-```
+Credentials are only sent to the configured Confluence origin: images or attachments hosted elsewhere are downloaded without the PAT, and a redirect to another host is refused.
 
-## Workflow
+The response includes `id`, `title`, `space`, `version`, `updated`, `updated_by`, `url`, `ancestors`, `labels`, `source_format`, `body`, `truncated`, `images`, `attachment_count`, and optionally `attachments`.
 
-Prefer `get-page --id` when the page id is known. It is stable and avoids ambiguous title matches.
+### Read, tree, export
 
-When the id is unknown:
+- `read <ids...>` fetches several pages concurrently; `--cql`/`-q` resolves ids from a search first. Per-page failures are returned as error entries, not raised.
+- `tree --id <root>` or `tree --space <key>` walks child pages breadth-first. `truncated` means pagination or `--max-pages` cut the walk; `depth_limited` means `--max-depth` did.
+- `export` writes Markdown files with YAML front matter to `<out>/<space>/<id>-<slug>.md` plus `manifest.json`, where `<slug>` is the slugified title. Targets come from `--cql`/`-q`, then `--ids`, then `--id`/`--space`. Always consider `--dry-run` first; existing files are skipped unless `--overwrite`. `--download-attachments` saves media under `<out>/attachments/<page-id>/`.
 
-1. Run `search-pages` with `--title` or `--cql`
-2. Check `total` in the response — if `total > limit + start`, more pages are available
-3. Pick the target page from the JSON results
-4. Run `get-page --id ...`
+## Workflows
 
-To fetch all results when `total` exceeds `limit`, loop `search-pages` with `--start` incremented by `limit` each call until all results are retrieved.
+**Answer a question from the wiki**
 
-The script defaults to `body.storage`, which is the safest format for downstream processing. Use `--body-format view` only when rendered HTML is specifically needed.
+1. `search -q "<keywords>" [--space KEY] --limit 5`.
+2. Choose the best page by title and excerpt.
+3. `get <id> --section "<heading>" --max-chars 4000`, or fetch the whole page when the structure is unknown.
+4. Answer from `body`, cite the page title and `url`. Avoid dumping the full body unless the user asked for it.
 
-## Output
+**Export documentation**
 
-The script prints JSON to stdout. Treat that as the interface contract.
+1. Locate pages with `search` or `tree`.
+2. `export ... --out DIR --dry-run` to confirm targets.
+3. Run without `--dry-run`; report `written`, `skipped`, and `failed`.
 
-For large result sets, use `--compact` to produce single-line JSON and conserve tokens:
+**Batch processing**
 
-```bash
-python3 scripts/confluence_api.py search-pages --title "docs" --limit 50 --compact
-```
+Use `read` for a handful of pages and `tree` + `export --space` for an entire space. Keep `--max-depth` and `--max-pages` bounded.
 
-Important fields for `get-page`:
+**Fuzzy title requests**
 
-- `id`
-- `title`
-- `type`
-- `status`
-- `space`
-- `version`
-- `webui`
-- `body` — inline `<ac:image>` tags are automatically replaced with Markdown image links `![alt](url)` using real attachment download URLs
-- `attachments` — full list of page attachments with download URLs
-- `images` — metadata of image references found in the body (`filename`, `url`, `alt`, `type`)
-- `raw` — the untouched Confluence API response (includes original `body.storage`)
+If the user gives a title but not an id, use `get --title "<title>" --space <key>`; the response includes `match` (`exact` or `fuzzy`) and `ambiguous`/`candidates` when several pages match. Fall back to `search` when the match is fuzzy.
 
-For `search-pages`, the response includes `total`, `start`, `limit`, and `results`. Use `total` and `start` to determine whether more pages exist.
+## Output contract
 
-For downloads, the script returns JSON containing the saved files.
+- Success: one JSON object on stdout.
+- Failure: one JSON object on stderr with `error.type`, `error.message`, and often `error.status` and `error.hint`.
+- JSON is compact by default; add `--pretty` for readability.
+- Exit codes: `0` success, `1` unexpected, `2` configuration/usage, `3` auth or permission, `4` not found, `5` network, `6` API/server.
 
-## Error handling
+Read stderr before retrying. In particular:
 
-When the script returns an error, match the HTTP status and suggest a recovery action:
-
-- **401 Unauthorized** — The PAT is missing, expired, or invalid. Ask the user to check `CONFLUENCE_PAT` in `.env`. Do not retry automatically. If `CONFLUENCE_AUTH_MODE=auto` failed with 401, suggest switching to `CONFLUENCE_AUTH_MODE=basic` and providing `CONFLUENCE_USERNAME` as a fallback.
-- **403 Forbidden** — The PAT is valid but the account lacks permission for the requested resource. Tell the user which resource was denied and suggest checking permissions in Confluence.
-- **404 Not Found** — The page id or title does not match anything. Confirm the id with the user, or broaden the search if using `--title`.
-- **Network errors** (connection refused, timeout) — Report the Confluence base URL and suggest the user verify VPN or network connectivity. Do not retry more than once.
-
-In all error cases, present the error clearly to the user rather than silently swallowing it. The script writes errors to stderr — always check stderr output.
+- **2** — run `config show` or `check`; the base URL, credentials, or flags are wrong.
+- **3** — the token is invalid/expired or the account lacks access. Do not retry automatically. Basic auth needs the login password, not a PAT.
+- **4** — confirm the id, or search by title/excerpt.
+- **5** — likely VPN or network connectivity; verify the base URL is reachable.
+- **6** — server-side error; report status and message rather than guessing.
 
 ## Notes
 
-- Do not ask the user for a password when `CONFLUENCE_PAT` is present in `.env`.
-- Prefer the script over ad hoc `curl` unless debugging auth or endpoint behavior.
+- Prefer `CONFLUENCE_PAT` in the user config file over the `--pat` flag, which is visible in process lists and shell history.
+- `check` reports auth and connectivity plus a `warnings` list (for example, a plain-HTTP base URL that would send credentials unencrypted). Surface those warnings to the user.
+- Never print, log, or commit token or password values. `config show` only reports `pat_set`/`password_set`.
+- Prefer this script over ad hoc `curl` so auth, pagination, and error handling stay consistent.
+- The skill is read-only; it cannot create, update, or delete pages.

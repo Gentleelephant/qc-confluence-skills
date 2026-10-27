@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+
+# Local credentials — never commit
+.env
+.env.local
+.env.*.local
